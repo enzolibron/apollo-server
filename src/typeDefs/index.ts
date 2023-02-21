@@ -1,4 +1,5 @@
 import { book } from './Book';
 import { auth } from './auth';
+import { directive } from './directive';
 
-export { book, auth };
+export { book, auth, directive };

@@ -1,18 +1,19 @@
 import express, { Express } from 'express';
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
-import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
 import http from 'http';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import mongoose from 'mongoose';
 import { authResolver, bookResolver } from './resolvers';
-import { auth, book } from './typeDefs';
+import { auth, book, directive } from './typeDefs';
 import dotenv from 'dotenv';
+import { makeExecutableSchema } from '@graphql-tools/schema';
+import { authDirectiveTransformer } from './directives/auth';
 
 dotenv.config();
 const resolvers = [bookResolver, authResolver];
-const typeDefs = [book, auth];
+const typeDefs = [book, auth, directive];
 
 const main = async () => {
   mongoose.set('strictQuery', false);
@@ -23,10 +24,16 @@ const main = async () => {
 
   const httpServer = http.createServer(app);
 
-  const apolloServer = new ApolloServer({
+  // Create the base executable schema
+  let schema = makeExecutableSchema({
     typeDefs,
     resolvers,
-    plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],
+  });
+
+  schema = authDirectiveTransformer(schema);
+
+  const apolloServer = new ApolloServer({
+    schema,
   });
 
   await apolloServer.start();
@@ -36,7 +43,7 @@ const main = async () => {
     cors<cors.CorsRequest>(),
     bodyParser.json(),
     expressMiddleware(apolloServer, {
-      context: async ({ req }) => ({ token: req.headers.token }),
+      context: async ({ req }) => ({ token: req.headers.authorization }),
     })
   );
 
